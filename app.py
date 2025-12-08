@@ -1,7 +1,7 @@
 # app.py
 """
-Project 2: Abbreviation Extractor (Gemini Version)
-Uses Google Gemini (Closed-Source) to satisfy Question 4.
+Project 2: Abbreviation Extractor (Gemini Direct Version)
+Uses Google's Native SDK to bypass LangChain version errors.
 """
 import re
 import tempfile
@@ -10,22 +10,20 @@ import docx2txt
 from bs4 import BeautifulSoup
 import fitz  # PyMuPDF
 
-# REPLACE GROQ IMPORT WITH GOOGLE
-from langchain_google_genai import ChatGoogleGenerativeAI
+# NEW: Import the direct Google SDK
+import google.generativeai as genai
 
 # ----------------------------
-# 1. Model Configuration (Closed-Source API)
+# 1. Model Configuration (Direct SDK)
 # ----------------------------
-# Get key from secrets
-api_key = st.secrets["GOOGLE_API_KEY"]
-
-# Initialize Gemini (Closed-Source Model)
-# CHANGED: Switched to 'gemini-pro' which is the standard stable model
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash", 
-    temperature=0.1,
-    google_api_key=api_key
-)
+try:
+    # Configure with the key from secrets
+    genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
+    
+    # Initialize the Flash model directly
+    model = genai.GenerativeModel('gemini-1.5-flash')
+except Exception as e:
+    st.error(f"Configuration Error: {e}")
 
 # ----------------------------
 # 2. PDF Extraction
@@ -74,14 +72,12 @@ def parse_file(uploaded_file) -> str:
     return ""
 
 # ----------------------------
-# 4. Extraction Logic
+# 4. Extraction Logic (Direct)
 # ----------------------------
 def get_abbreviations(text: str) -> str:
     if not text.strip(): return "No text found."
     
-    # gemini-pro has a slightly smaller context window than 1.5-flash, 
-    # so we lower the limit slightly to be safe (30k chars is plenty for abbreviations)
-    doc_clip = text[:30000] 
+    doc_clip = text[:50000] 
 
     prompt = (
         "TASK: Extract scientific/technical abbreviations and definitions.\n"
@@ -97,10 +93,11 @@ def get_abbreviations(text: str) -> str:
     )
     
     try:
-        response = llm.invoke(prompt)
-        return response.content.strip()
+        # Direct generation call
+        response = model.generate_content(prompt)
+        return response.text.strip()
     except Exception as e:
-        return f"Error connecting to Cloud API: {e}"
+        return f"Error connecting to Google API: {e}"
 
 # ----------------------------
 # 5. UI Layout
@@ -143,7 +140,7 @@ if prompt := st.chat_input("Type 'Extract abbreviations' or ask a question..."):
         is_extract = any(x in prompt.lower() for x in ["abbreviation", "extract", "list"])
         
         if is_extract and file_content:
-            with st.spinner("Analyzing with Gemini..."):
+            with st.spinner("Analyzing with Gemini (Direct)..."):
                 response_text = get_abbreviations(file_content)
                 st.markdown(response_text)
                 st.download_button("Download Index", response_text, "index.txt")
@@ -152,10 +149,13 @@ if prompt := st.chat_input("Type 'Extract abbreviations' or ask a question..."):
             st.markdown(response_text)
         else:
             with st.spinner("Thinking..."):
+                # Basic Chat (Direct)
                 rag_prompt = f"Answer based on context:\n\nQuestion: {prompt}\n\nContext: {file_content[:20000]}"
-                response_text = llm.invoke(rag_prompt).content
+                try:
+                    response = model.generate_content(rag_prompt)
+                    response_text = response.text
+                except Exception as e:
+                    response_text = f"Error: {e}"
                 st.markdown(response_text)
 
     st.session_state.messages.append({"role": "assistant", "content": response_text})
-
-
