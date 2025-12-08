@@ -1,7 +1,7 @@
 # app.py
 """
-Project 2: Abbreviation Extractor (Gemini Direct Version)
-Uses Google's Native SDK to bypass LangChain version errors.
+Project 2: Abbreviation Extractor (Gemini Robust Version)
+Uses Google's Native SDK with Auto-Model Selection to prevent 404 errors.
 """
 import re
 import tempfile
@@ -9,19 +9,39 @@ import streamlit as st
 import docx2txt
 from bs4 import BeautifulSoup
 import fitz  # PyMuPDF
-
-# NEW: Import the direct Google SDK
 import google.generativeai as genai
 
 # ----------------------------
-# 1. Model Configuration (Direct SDK)
+# 1. Model Configuration (Auto-Selector)
 # ----------------------------
+# Initialize a global variable for the model
+model = None
+
 try:
-    # Configure with the key from secrets
+    # Configure with the key
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
     
-    # Initialize the Flash model directly
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # SMART SELECTION: Ask the API what models are actually available to this key
+    # This prevents the "404 Not Found" error by never guessing.
+    available = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    
+    # Priority list: Try Flash first, then Pro, then whatever is available
+    model_name = None
+    if 'models/gemini-1.5-flash' in available:
+        model_name = 'gemini-1.5-flash'
+    elif 'models/gemini-pro' in available:
+        model_name = 'gemini-pro'
+    elif available:
+        model_name = available[0] # Fallback to the first available model
+        
+    if model_name:
+        model = genai.GenerativeModel(model_name)
+        # Store the name in session state to display it (optional debugging)
+        if "model_name" not in st.session_state:
+            st.session_state.model_name = model_name
+    else:
+        st.error("Error: No compatible Gemini models found for this API key.")
+
 except Exception as e:
     st.error(f"Configuration Error: {e}")
 
@@ -72,10 +92,11 @@ def parse_file(uploaded_file) -> str:
     return ""
 
 # ----------------------------
-# 4. Extraction Logic (Direct)
+# 4. Extraction Logic
 # ----------------------------
 def get_abbreviations(text: str) -> str:
     if not text.strip(): return "No text found."
+    if not model: return "Error: Model not loaded."
     
     doc_clip = text[:50000] 
 
@@ -93,7 +114,6 @@ def get_abbreviations(text: str) -> str:
     )
     
     try:
-        # Direct generation call
         response = model.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
@@ -114,6 +134,10 @@ with st.sidebar:
     st.write("• Kevin Magallon")
     st.write("• Gavrel Goveas")
     st.divider()
+    
+    # Debug info to verify which model was picked
+    if "model_name" in st.session_state:
+        st.caption(f"Running on: {st.session_state.model_name}")
     
     st.header("Upload Document")
     uploaded_file = st.file_uploader("Choose file", type=["pdf", "docx", "txt"])
@@ -140,7 +164,7 @@ if prompt := st.chat_input("Type 'Extract abbreviations' or ask a question..."):
         is_extract = any(x in prompt.lower() for x in ["abbreviation", "extract", "list"])
         
         if is_extract and file_content:
-            with st.spinner("Analyzing with Gemini (Direct)..."):
+            with st.spinner("Analyzing with Gemini..."):
                 response_text = get_abbreviations(file_content)
                 st.markdown(response_text)
                 st.download_button("Download Index", response_text, "index.txt")
@@ -149,13 +173,15 @@ if prompt := st.chat_input("Type 'Extract abbreviations' or ask a question..."):
             st.markdown(response_text)
         else:
             with st.spinner("Thinking..."):
-                # Basic Chat (Direct)
-                rag_prompt = f"Answer based on context:\n\nQuestion: {prompt}\n\nContext: {file_content[:20000]}"
-                try:
-                    response = model.generate_content(rag_prompt)
-                    response_text = response.text
-                except Exception as e:
-                    response_text = f"Error: {e}"
+                if model:
+                    rag_prompt = f"Answer based on context:\n\nQuestion: {prompt}\n\nContext: {file_content[:20000]}"
+                    try:
+                        response = model.generate_content(rag_prompt)
+                        response_text = response.text
+                    except Exception as e:
+                        response_text = f"Error: {e}"
+                else:
+                    response_text = "Model failed to initialize. Check API Key."
                 st.markdown(response_text)
 
     st.session_state.messages.append({"role": "assistant", "content": response_text})
