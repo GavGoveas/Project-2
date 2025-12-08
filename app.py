@@ -107,7 +107,14 @@ st.title("Doc Chat (Project 2) — Abbreviation Extractor")
 
 if "messages" not in st.session_state: st.session_state.messages = []
 
+# --- UPDATED SIDEBAR WITH TEAM CREDITS ---
 with st.sidebar:
+    st.header("Team Members")
+    st.write("• Regan DeQuasie")
+    st.write("• Kevin Magallon")
+    st.write("• Gavrel Goveas")
+    st.divider() # Adds a visual separator
+    
     st.header("Upload Document")
     uploaded_file = st.file_uploader("Choose file", type=["pdf", "docx", "txt"])
     if st.button("Clear Chat"):
