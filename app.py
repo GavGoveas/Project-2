@@ -21,7 +21,7 @@ api_key = st.secrets["GOOGLE_API_KEY"]
 
 # Initialize Gemini (Closed-Source Model)
 llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash", 
+    model="gemini-pro", 
     temperature=0.1,
     google_api_key=api_key
 )
@@ -154,3 +154,4 @@ if prompt := st.chat_input("Type 'Extract abbreviations' or ask a question..."):
                 st.markdown(response_text)
 
     st.session_state.messages.append({"role": "assistant", "content": response_text})
+
