@@ -1,7 +1,7 @@
 # app.py
 """
-Project 2: Abbreviation Extractor (Cloud Version)
-Uses Groq API (Llama 3) for fast, cloud-based extraction.
+Project 2: Abbreviation Extractor (Gemini Version)
+Uses Google Gemini (Closed-Source) to satisfy Question 4.
 """
 import re
 import tempfile
@@ -9,19 +9,21 @@ import streamlit as st
 import docx2txt
 from bs4 import BeautifulSoup
 import fitz  # PyMuPDF
-from langchain_groq import ChatGroq
+
+# REPLACE GROQ IMPORT WITH GOOGLE
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 # ----------------------------
-# 1. Model Configuration (Cloud API)
+# 1. Model Configuration (Closed-Source API)
 # ----------------------------
-# This tries to get the key from Streamlit's "Secrets" (for the cloud)
-# If running locally, you must create a .streamlit/secrets.toml file or paste key below for testing
-api_key = st.secrets["GROQ_API_KEY"]
+# Get key from secrets
+api_key = st.secrets["GOOGLE_API_KEY"]
 
-llm = ChatGroq(
-    temperature=0.1, 
-    model_name="llama3-8b-8192", 
-    api_key=api_key
+# Initialize Gemini (Closed-Source Model)
+llm = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash", 
+    temperature=0.1,
+    google_api_key=api_key
 )
 
 # ----------------------------
@@ -71,12 +73,11 @@ def parse_file(uploaded_file) -> str:
     return ""
 
 # ----------------------------
-# 4. Extraction Logic (Sandwich Prompt)
+# 4. Extraction Logic
 # ----------------------------
 def get_abbreviations(text: str) -> str:
     if not text.strip(): return "No text found."
     
-    # We can handle larger context now because Groq is fast!
     doc_clip = text[:50000] 
 
     prompt = (
@@ -101,7 +102,7 @@ def get_abbreviations(text: str) -> str:
 # ----------------------------
 # 5. UI Layout
 # ----------------------------
-st.set_page_config(page_title="Project 2 — Cloud Extractor", layout="wide")
+st.set_page_config(page_title="Project 2 — Gemini Extractor", layout="wide")
 st.title("Doc Chat (Project 2) — Abbreviation Extractor")
 
 if "messages" not in st.session_state: st.session_state.messages = []
@@ -132,7 +133,7 @@ if prompt := st.chat_input("Type 'Extract abbreviations' or ask a question..."):
         is_extract = any(x in prompt.lower() for x in ["abbreviation", "extract", "list"])
         
         if is_extract and file_content:
-            with st.spinner("Analyzing on the cloud..."):
+            with st.spinner("Analyzing with Gemini..."):
                 response_text = get_abbreviations(file_content)
                 st.markdown(response_text)
                 st.download_button("Download Index", response_text, "index.txt")
@@ -141,7 +142,6 @@ if prompt := st.chat_input("Type 'Extract abbreviations' or ask a question..."):
             st.markdown(response_text)
         else:
             with st.spinner("Thinking..."):
-                # Basic Chat
                 rag_prompt = f"Answer based on context:\n\nQuestion: {prompt}\n\nContext: {file_content[:20000]}"
                 response_text = llm.invoke(rag_prompt).content
                 st.markdown(response_text)
