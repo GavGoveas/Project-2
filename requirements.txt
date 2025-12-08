@@ -2,4 +2,5 @@ streamlit
 pymupdf
 docx2txt
 beautifulsoup4
-langchain-google-genai
+langchain-google-genai>=1.0.3
+langchain>=0.1.0
