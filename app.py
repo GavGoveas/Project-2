@@ -20,6 +20,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 api_key = st.secrets["GOOGLE_API_KEY"]
 
 # Initialize Gemini (Closed-Source Model)
+# CHANGED: Switched to 'gemini-pro' which is the standard stable model
 llm = ChatGoogleGenerativeAI(
     model="gemini-pro", 
     temperature=0.1,
@@ -78,7 +79,9 @@ def parse_file(uploaded_file) -> str:
 def get_abbreviations(text: str) -> str:
     if not text.strip(): return "No text found."
     
-    doc_clip = text[:50000] 
+    # gemini-pro has a slightly smaller context window than 1.5-flash, 
+    # so we lower the limit slightly to be safe (30k chars is plenty for abbreviations)
+    doc_clip = text[:30000] 
 
     prompt = (
         "TASK: Extract scientific/technical abbreviations and definitions.\n"
@@ -107,13 +110,13 @@ st.title("Doc Chat (Project 2) — Abbreviation Extractor")
 
 if "messages" not in st.session_state: st.session_state.messages = []
 
-# --- UPDATED SIDEBAR WITH TEAM CREDITS ---
+# --- TEAM CREDITS ---
 with st.sidebar:
     st.header("Team Members")
     st.write("• Regan DeQuasie")
     st.write("• Kevin Magallon")
     st.write("• Gavrel Goveas")
-    st.divider() # Adds a visual separator
+    st.divider()
     
     st.header("Upload Document")
     uploaded_file = st.file_uploader("Choose file", type=["pdf", "docx", "txt"])
@@ -154,4 +157,3 @@ if prompt := st.chat_input("Type 'Extract abbreviations' or ask a question..."):
                 st.markdown(response_text)
 
     st.session_state.messages.append({"role": "assistant", "content": response_text})
-
