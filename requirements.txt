@@ -3,3 +3,5 @@ pymupdf
 docx2txt
 beautifulsoup4
 google-generativeai
+langchain-groq
+langchain
